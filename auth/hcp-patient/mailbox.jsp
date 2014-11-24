@@ -11,6 +11,12 @@
 <%@page import="edu.ncsu.csc.itrust.action.ViewMyMessagesAction"%>
 <%@page import="edu.ncsu.csc.itrust.action.EditPatientAction"%>
 <%@page import="edu.ncsu.csc.itrust.action.EditPersonnelAction"%>
+
+<%
+boolean outbox=(Boolean)session.getAttribute("outbox");
+boolean isHCP=(Boolean)session.getAttribute("isHCP");
+%>
+
 			<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 			<script src="/iTrust/DataTables/media/js/jquery.dataTables.min.js" type="text/javascript"></script>
 			<script type="text/javascript">
@@ -28,30 +34,86 @@
 			</script>
 			<script type="text/javascript">	
    				$(document).ready(function() {
-   					console.log("booo")
+   					
        				$("#mailbox").dataTable( {
+       					"aLengthMenu":[25, 50, 75, 100],
+       					"iDisplayLength": 25,
        					"aaColumns": [ [2,'dsc'] ],
        					"aoColumns": [ { "sType": "lname" }, null, null, {"bSortable": false} ],
        					"sPaginationType": "full_numbers"
        				});
-       				//applyFilter();
+       				applyFilter()
    				});
    				
 				//if cell value does not match filter, hide the row
 				function searcher(td, filter){
-						col_val = td.html().toLowerCase();
-					console.log("filter is:")
-					console.log(filter)
-					console.log("col val:")
-					console.log(col_val)
+					col_val = td.html().toLowerCase();
 					if (filter.localeCompare(col_val)!=0)
 					{
 						td.closest("tr").hide();
 					}
 				}
+				
+   				//convert date strings in date object for easy comparison				
+   				function getDateObject(dateString){
+   					var date = new Date();
+   					if (dateString == ""){
+   						console.log("NOTHING")
+   						return "";
+   					}
+   					else if (dateString.indexOf("/") >=0){
+   						date_list = dateString.split("/");
+   						date.setFullYear(parseInt(date_list[2]), parseInt(date_list[0])-1, parseInt(date_list[1]));
+   					}
+   					else{
+   						dateString = dateString.slice(0, -6);
+   						date_list = dateString.split("-");
+   						date.setFullYear(date_list[0], parseInt(date_list[1])-1, parseInt(date_list[2]));
+   					}
+   					return date;
+   				}
+   				
+   				//given a start and end filter, returns true if the row should be hidden and false otherwise
+   				function compareDates(table, start, end){
+   					if (start == "" && end == ""){
+   						return false;
+   					}
+   					table.setHours(0,0,0,0);
+   					start.setHours(0,0,0,0);
+   					end.setHours(0,0,0,0);
+   					if (start == ""){
+   						if (table>end){
+   							return true;
+   						}
+   						else{
+   							return false;
+   						}
+   					}
+   					else if (end == ""){
+   						if (table<start){
+   							return true;
+   						}
+   						else{
+   							return false;
+   						}
+   					}
+   					
+   					else if(table<start || table>end){
+   						return true;
+   					}
+   					else{
+   						return false;
+   					}
+   				}
+   				
+   				
    				function applyFilter(){
-   					var sender = "random person";
-					//var subject = ""
+   					/**Each variable should be the value from the database, right now are just example strings for testing. You can
+   					use the outbox boolean variable initialized above to tell if its the outbox or inbox. Also the 
+   					getDateObject converts a string to a javascript date object, so maybe it would just be easier to store the
+   					date as a string in the database instead of timestamp, so like "1/30/2014" **/
+   					//var sender = "random person";
+					//var subject = "appointment";
 					//var includes = "point"
 					//var excludes = ""
 					//var start_date = ""
@@ -65,10 +127,29 @@
 							send_val = $td.eq(0).html().toLowerCase();
 							sub_val = $td.eq(1).html().toLowerCase();
 							rec_val = $td.eq(2).html().toLowerCase();
-
+							
+							/**
+							Once the variables are set, you can uncomment this
+							
 							searcher($td.eq(0), sender);
-							//searcher($td.eq(1), subject);
+							searcher($td.eq(1), subject);
 
+							if (compareDates(getDateObject(rec_val), start_date, end_date)){
+  									$td.eq(0).closest("tr").hide()
+  								}
+  								
+							if (includes!="" && send_val.indexOf(includes) < 0 && sub_val.indexOf(includes) < 0
+									&& rec_val.indexOf(includes)<0 ){
+								console.log("less than 0")
+								$td.eq(0).closest("tr").hide();
+							}
+							
+							
+							if (excludes!="" && (send_val.indexOf(excludes) >= 0 || sub_val.indexOf(excludes) >= 0
+									|| rec_val.indexOf(excludes)>=0) ){
+								$td.eq(0).closest("tr").hide();
+							}**/
+							
 						})
 					})
    				}
@@ -82,8 +163,7 @@
 
 <%
 
-boolean outbox=(Boolean)session.getAttribute("outbox");
-boolean isHCP=(Boolean)session.getAttribute("isHCP");
+
 
 String pageName="messageInbox.jsp";
 if(outbox){
@@ -99,7 +179,8 @@ ViewMyMessagesAction action = new ViewMyMessagesAction(prodDAO, loggedInMID.long
 
 List<MessageBean> messages = outbox?action.getAllMySentMessages():action.getAllMyMessages();
 session.setAttribute("messages", messages);
-		
+
+
 if(messages.size() > 0) { %>
 <a href="/iTrust/auth/hcp-patient/applyFilter.jsp?mail=<%= outbox?"out":"in" %>">Apply Filter</a>
 <table id="mailbox" class="display fTable">
